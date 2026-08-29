@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  username      String         @unique
+  email         String         @unique
+  passwordHash  String
+  fullName      String
+  role          String         @default("citizen") // "citizen" | "authority" | "admin"
+  locationLat   Float?
+  locationLng   Float?
+  city          String?
+  state         String?
+  avatar        String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  posts         Post[]
+  votes         Vote[]
+  comments      Comment[]
+  statusUpdates StatusUpdate[]
+
+  @@map("users")
+}
+
+model Post {
+  id             String         @id @default(uuid())
+  userId         String
+  title          String
+  description    String
+  category       String
+  criticality    String         @default("medium") // "low" | "medium" | "high" | "critical"
+  locationLat    Float?
+  locationLng    Float?
+  address        String?
+  city           String?
+  state          String?
+  status         String         @default("reported") // "reported" | "under_review" | "in_progress" | "resolved"
+  janbinduScore  Float          @default(0.0)
+  upvoteCount    Int            @default(0)
+  downvoteCount  Int            @default(0)
+  commentCount   Int            @default(0)
+  shareCount     Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images         PostImage[]
+  votes          Vote[]
+  comments       Comment[]
+  statusUpdates  StatusUpdate[]
+
+  @@index([janbinduScore(sort: Desc)])
+  @@index([category])
+  @@index([status])
+  @@index([locationLat, locationLng])
+  @@map("posts")
+}
+
+model PostImage {
+  id        String   @id @default(uuid())
+  postId    String
+  imageUrl  String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("post_images")
+}
+
+model Vote {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  voteType  String   // "upvote" | "downvote"
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@map("votes")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+model StatusUpdate {
+  id          String   @id @default(uuid())
+  postId      String
+  authorityId String
+  oldStatus   String?
+  newStatus   String
+  note        String?
+  createdAt   DateTime @default(now())
+
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authority   User     @relation(fields: [authorityId], references: [id], onDelete: Cascade)
+
+  @@map("status_updates")
+}
