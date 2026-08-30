@@ -31,8 +31,7 @@ export const Navbar = () => {
   };
 
   const navLinks = [
-    { href: '/feed', label: 'Issues Feed', icon: TrendingUp },
-    { href: '/map', label: 'Civic Map', icon: MapPin },
+    { href: '/feed', label: 'Explore Issues', icon: TrendingUp },
   ];
 
   return (
