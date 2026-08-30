@@ -49,15 +49,45 @@ export function getCategoryInfo(categoryVal: string) {
   );
 }
 
+export function calculateDistanceKm(
+  lat1?: number | null,
+  lon1?: number | null,
+  lat2?: number | null,
+  lon2?: number | null
+): number | null {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+
+  const R = 6371; // Radius of the Earth in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return parseFloat((R * c).toFixed(1));
+}
+
+export function formatDistance(distanceKm: number | null): string | null {
+  if (distanceKm == null) return null;
+  if (distanceKm < 1) {
+    const meters = Math.round(distanceKm * 1000);
+    return `${meters}m away`;
+  }
+  return `${distanceKm} km away`;
+}
+
 export function getCriticalityBadge(criticality: string) {
   switch (criticality) {
     case 'critical':
-      return { label: 'Critical', bg: 'bg-red-100', text: 'text-red-700', dot: 'bg-red-600' };
+      return { label: 'Critical', bg: 'bg-red-500/10 text-red-700 border-red-200', text: 'text-red-700', dot: 'bg-red-600', ring: 'ring-red-500/20' };
     case 'high':
-      return { label: 'High', bg: 'bg-orange-100', text: 'text-orange-700', dot: 'bg-orange-500' };
+      return { label: 'High', bg: 'bg-orange-500/10 text-orange-700 border-orange-200', text: 'text-orange-700', dot: 'bg-orange-500', ring: 'ring-orange-500/20' };
     case 'medium':
-      return { label: 'Medium', bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-500' };
+      return { label: 'Medium', bg: 'bg-amber-500/10 text-amber-800 border-amber-200', text: 'text-amber-700', dot: 'bg-amber-500', ring: 'ring-amber-500/20' };
     default:
-      return { label: 'Low', bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-500' };
+      return { label: 'Low', bg: 'bg-emerald-500/10 text-emerald-800 border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-500', ring: 'ring-emerald-500/20' };
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromRequest, unauthorizedResponse } from '@/lib/auth';
 import { recalculatePostScore } from '@/lib/algorithm';
+import { calculateDistanceKm } from '@/lib/utils';
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,7 +10,11 @@ export async function GET(req: NextRequest) {
     const sort = searchParams.get('sort') || 'trending';
     const category = searchParams.get('category');
     const status = searchParams.get('status');
-    const city = searchParams.get('city');
+    const criticality = searchParams.get('criticality');
+    const search = searchParams.get('search') || searchParams.get('city') || '';
+    const userLat = searchParams.get('userLat') ? parseFloat(searchParams.get('userLat')!) : null;
+    const userLng = searchParams.get('userLng') ? parseFloat(searchParams.get('userLng')!) : null;
+    const maxDistanceKm = searchParams.get('maxDistance') ? parseFloat(searchParams.get('maxDistance')!) : null;
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '12', 10);
     const skip = (page - 1) * limit;
@@ -19,19 +24,31 @@ export async function GET(req: NextRequest) {
     const where: any = {};
     if (category) where.category = category;
     if (status) where.status = status;
-    if (city) where.city = { contains: city };
+    if (criticality) where.criticality = criticality;
+
+    if (search.trim()) {
+      where.OR = [
+        { title: { contains: search.trim(), mode: 'insensitive' } },
+        { description: { contains: search.trim(), mode: 'insensitive' } },
+        { city: { contains: search.trim(), mode: 'insensitive' } },
+        { address: { contains: search.trim(), mode: 'insensitive' } },
+        { state: { contains: search.trim(), mode: 'insensitive' } },
+      ];
+    }
 
     let orderBy: any = { janbinduScore: 'desc' };
     if (sort === 'recent') {
       orderBy = { createdAt: 'desc' };
+    } else if (sort === 'critical') {
+      orderBy = [{ criticality: 'desc' }, { janbinduScore: 'desc' }];
     }
 
     const [posts, total] = await Promise.all([
       prisma.post.findMany({
         where,
         orderBy,
-        skip,
-        take: limit,
+        skip: sort === 'nearby' ? 0 : skip, // For nearby sort, we rank in memory if coordinates provided
+        take: sort === 'nearby' ? 100 : limit,
         include: {
           user: {
             select: { id: true, username: true, fullName: true, avatar: true },
@@ -52,16 +69,37 @@ export async function GET(req: NextRequest) {
       prisma.post.count({ where }),
     ]);
 
-    const formattedPosts = posts.map((post: any) => {
+    let formattedPosts = posts.map((post: any) => {
       const userVote = post.votes && post.votes.length > 0 ? post.votes[0].voteType : null;
       const { votes: _, ...rest } = post;
+      const distance = calculateDistanceKm(userLat, userLng, post.locationLat, post.locationLng);
+
       return {
         ...rest,
         firstImage: post.images[0]?.imageUrl || null,
         imageCount: post.images?.length || 0,
+        imagesList: post.images?.map((i: any) => i.imageUrl) || [],
         userVote,
+        distanceKm: distance,
+        isNearby: distance != null ? distance <= 10.0 : false,
       };
     });
+
+    // Handle nearby sorting or filtering
+    if (sort === 'nearby' && userLat != null && userLng != null) {
+      formattedPosts = formattedPosts.sort((a, b) => {
+        if (a.distanceKm == null) return 1;
+        if (b.distanceKm == null) return -1;
+        return a.distanceKm - b.distanceKm;
+      });
+
+      if (maxDistanceKm != null) {
+        formattedPosts = formattedPosts.filter((p) => p.distanceKm != null && p.distanceKm <= maxDistanceKm);
+      }
+
+      // Paginate sorted result
+      formattedPosts = formattedPosts.slice(skip, skip + limit);
+    }
 
     return NextResponse.json({
       posts: formattedPosts,
