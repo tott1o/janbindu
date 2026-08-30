@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MapComponent } from '@/components/MapComponent';
 import { CategorySelect } from '@/components/CategorySelect';
+import { BottomDock } from '@/components/BottomDock';
 import { useAuth } from '@/context/AuthContext';
 import {
   Loader2,
@@ -309,26 +310,8 @@ export default function CivicMapPage() {
         />
       </div>
 
-      {/* Floating Compact Action Dock (Mobile-Responsive & Small) */}
-      <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 p-1 rounded-full bg-slate-900/90 backdrop-blur-md border border-white/15 shadow-2xl pointer-events-auto">
-        <Link
-          href="/feed"
-          className="flex items-center gap-1 px-3 py-1.5 sm:px-3.5 sm:py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-[11px] sm:text-xs font-semibold transition-all active:scale-95 whitespace-nowrap"
-        >
-          <LayoutGrid className="w-3.5 h-3.5 text-primary-400" />
-          <span>Feed</span>
-        </Link>
-
-        <div className="w-[1px] h-4 bg-white/20" />
-
-        <Link
-          href="/create"
-          className="flex items-center gap-1 px-3.5 py-1.5 sm:px-4 sm:py-1.5 rounded-full bg-primary-600 hover:bg-primary-500 text-white text-[11px] sm:text-xs font-bold shadow-sm transition-all active:scale-95 whitespace-nowrap"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Report</span>
-        </Link>
-      </div>
+      {/* Floating 3-Option Navigation Dock (Feed, Map | Report with active state) */}
+      <BottomDock />
     </div>
   );
 }

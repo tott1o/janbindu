@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { CATEGORIES } from '@/lib/utils';
 import { MapComponent } from '@/components/MapComponent';
 import { CategorySelect } from '@/components/CategorySelect';
+import { BottomDock } from '@/components/BottomDock';
 import {
   AlertTriangle,
   MapPin,
@@ -817,6 +818,9 @@ export default function CreatePostPage() {
           </div>
         </form>
       </div>
+
+      {/* Floating 3-Option Navigation Dock (Feed, Map | Report with active state) */}
+      <BottomDock />
     </div>
   );
 }
