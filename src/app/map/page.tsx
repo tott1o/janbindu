@@ -159,22 +159,24 @@ export default function CivicMapPage() {
         />
       </div>
 
-      {/* Floating Bottom Navigation Pill (Switch to Feed or Report) */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 pointer-events-auto">
+      {/* Floating Compact Action Dock (Mobile-Responsive & Small) */}
+      <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 p-1 rounded-full bg-slate-900/90 backdrop-blur-md border border-white/15 shadow-2xl pointer-events-auto">
         <Link
           href="/feed"
-          className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-slate-900/90 hover:bg-slate-900 text-white font-bold text-xs shadow-2xl backdrop-blur-md border border-white/20 transition-all hover:scale-105 active:scale-95"
+          className="flex items-center gap-1 px-3 py-1.5 sm:px-3.5 sm:py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-[11px] sm:text-xs font-semibold transition-all active:scale-95 whitespace-nowrap"
         >
-          <LayoutGrid className="w-4 h-4 text-primary-400" />
-          <span>Switch to Feed List</span>
+          <LayoutGrid className="w-3.5 h-3.5 text-primary-400" />
+          <span>Feed</span>
         </Link>
+
+        <div className="w-[1px] h-4 bg-white/20" />
 
         <Link
           href="/create"
-          className="flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-primary-600 hover:bg-primary-500 text-white font-bold text-xs shadow-2xl transition-all hover:scale-105 active:scale-95"
+          className="flex items-center gap-1 px-3.5 py-1.5 sm:px-4 sm:py-1.5 rounded-full bg-primary-600 hover:bg-primary-500 text-white text-[11px] sm:text-xs font-bold shadow-sm transition-all active:scale-95 whitespace-nowrap"
         >
-          <Plus className="w-4 h-4" />
-          <span>Report Issue</span>
+          <Plus className="w-3.5 h-3.5" />
+          <span>Report</span>
         </Link>
       </div>
     </div>
