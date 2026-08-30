@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowBigUp, ArrowBigDown, MessageSquare, Share2, MapPin, Flame } from 'lucide-react';
+import { ArrowBigUp, ArrowBigDown, MessageSquare, Share2, MapPin, Flame, Images } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { CategoryBadge } from './CategoryBadge';
 import { timeAgo, getCriticalityBadge } from '@/lib/utils';
@@ -115,6 +115,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onVoteChange }) => {
           {/* Badges Overlay */}
           <div className="absolute top-3 left-3 flex items-center gap-2">
             <CategoryBadge category={post.category} />
+            {(post as any).imageCount > 1 && (
+              <span className="px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-bold backdrop-blur-xs flex items-center gap-1">
+                <Images className="w-3 h-3" />
+                {(post as any).imageCount}
+              </span>
+            )}
           </div>
 
           {/* JanBindu Score Metric Tag */}

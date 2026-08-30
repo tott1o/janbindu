@@ -38,7 +38,6 @@ export async function GET(req: NextRequest) {
           },
           images: {
             select: { id: true, imageUrl: true },
-            take: 1,
           },
           ...(currentUser
             ? {
@@ -59,6 +58,7 @@ export async function GET(req: NextRequest) {
       return {
         ...rest,
         firstImage: post.images[0]?.imageUrl || null,
+        imageCount: post.images?.length || 0,
         userVote,
       };
     });

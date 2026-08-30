@@ -17,6 +17,9 @@ import {
   Crosshair,
   Sparkles,
   RefreshCw,
+  Plus,
+  Images,
+  Image as ImageIcon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -46,6 +49,8 @@ interface SearchResult {
   };
 }
 
+const MAX_IMAGES = 8;
+
 export default function CreatePostPage() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
@@ -57,9 +62,12 @@ export default function CreatePostPage() {
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+
+  // Multi-image state
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingCount, setUploadingCount] = useState<number>(0);
+  const [urlInput, setUrlInput] = useState('');
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
   // Position state (default fallback if GPS permission is pending)
   const [position, setPosition] = useState<{ lat: number; lng: number }>({
@@ -238,7 +246,6 @@ export default function CreatePostPage() {
     setShowSearchResults(false);
     setSearchQuery(result.display_name);
 
-    // Auto populate address fields
     if (result.address) {
       const addrObj = result.address;
       const road = addrObj.road || addrObj.suburb || addrObj.neighbourhood || '';
@@ -273,16 +280,32 @@ export default function CreatePostPage() {
     await reverseGeocode(lat, lng);
   };
 
-  // Photo upload handling (Cloudinary)
+  /**
+   * Multi-file Cloudinary Upload handling
+   */
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const file = files[0];
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('Image must be smaller than 10MB');
+    const remainingSlots = MAX_IMAGES - uploadedImages.length;
+    if (remainingSlots <= 0) {
+      toast.error(`Maximum of ${MAX_IMAGES} photos reached`);
       return;
     }
+
+    const filesArray = Array.from(files).slice(0, remainingSlots);
+
+    // Validate size (max 10MB per file)
+    const validFiles: File[] = [];
+    for (const f of filesArray) {
+      if (f.size > 10 * 1024 * 1024) {
+        toast.error(`"${f.name}" exceeds 10MB limit and was skipped`);
+      } else {
+        validFiles.push(f);
+      }
+    }
+
+    if (validFiles.length === 0) return;
 
     const token = localStorage.getItem('janbindu_token');
     if (!token) {
@@ -291,9 +314,9 @@ export default function CreatePostPage() {
     }
 
     try {
-      setUploadingImage(true);
+      setUploadingCount(validFiles.length);
       const formData = new FormData();
-      formData.append('file', file);
+      validFiles.forEach((file) => formData.append('files', file));
 
       const res = await fetch('/api/upload', {
         method: 'POST',
@@ -303,18 +326,31 @@ export default function CreatePostPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || 'Failed to upload image');
+        toast.error(data.error || 'Failed to upload images');
         return;
       }
 
-      setUploadedImages((prev) => [...prev, data.url]);
-      toast.success('Photo uploaded to Cloudinary successfully!');
+      const newUrls: string[] = data.urls || (data.url ? [data.url] : []);
+      setUploadedImages((prev) => [...prev, ...newUrls].slice(0, MAX_IMAGES));
+      toast.success(`${newUrls.length} photo${newUrls.length > 1 ? 's' : ''} uploaded to Cloudinary!`);
     } catch {
-      toast.error('Error connecting to Cloudinary upload');
+      toast.error('Error uploading photos to Cloudinary');
     } finally {
-      setUploadingImage(false);
+      setUploadingCount(0);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleAddImageUrl = () => {
+    if (!urlInput.trim()) return;
+    if (uploadedImages.length >= MAX_IMAGES) {
+      toast.error(`Maximum of ${MAX_IMAGES} photos reached`);
+      return;
+    }
+    setUploadedImages((prev) => [...prev, urlInput.trim()]);
+    setUrlInput('');
+    setShowUrlInput(false);
+    toast.success('Image link added');
   };
 
   const removeUploadedImage = (index: number) => {
@@ -336,9 +372,6 @@ export default function CreatePostPage() {
       return;
     }
 
-    const finalImages = [...uploadedImages];
-    if (imageUrl.trim()) finalImages.push(imageUrl.trim());
-
     try {
       setLoading(true);
       const res = await fetch('/api/posts', {
@@ -357,7 +390,7 @@ export default function CreatePostPage() {
           state: state || '',
           locationLat: position.lat,
           locationLng: position.lng,
-          images: finalImages,
+          images: uploadedImages,
         }),
       });
 
@@ -388,7 +421,7 @@ export default function CreatePostPage() {
             <div>
               <h1 className="text-2xl font-black tracking-tight">Report a Public Issue</h1>
               <p className="text-xs text-primary-200 mt-0.5">
-                Location and address are automatically detected & pinned.
+                Upload multiple photos and pinpoint the exact street location.
               </p>
             </div>
           </div>
@@ -462,71 +495,134 @@ export default function CreatePostPage() {
             </div>
           </div>
 
-          {/* Cloudinary Image Upload Section */}
+          {/* ========================================================================= */}
+          {/* MULTI-IMAGE UPLOAD SECTION (CLOUDINARY) */}
+          {/* ========================================================================= */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-              Photo Evidence (Automatic Cloudinary Upload)
-            </label>
-
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-300 hover:border-primary-500 bg-slate-50/60 hover:bg-primary-50/30 rounded-2xl p-6 text-center cursor-pointer transition-colors"
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept="image/*"
-                className="hidden"
-                disabled={uploadingImage}
-              />
-
-              {uploadingImage ? (
-                <div className="flex flex-col items-center justify-center gap-2 py-2">
-                  <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
-                  <span className="text-sm font-semibold text-primary-700">
-                    Uploading image to Cloudinary...
-                  </span>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-2">
-                  <div className="w-12 h-12 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center">
-                    <UploadCloud className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <span className="text-sm font-bold text-gray-900">
-                      Click or drag to upload photo from your device
-                    </span>
-                    <p className="text-xs text-gray-500 mt-0.5">PNG, JPG, WEBP up to 10MB</p>
-                  </div>
-                </div>
-              )}
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Images className="w-4 h-4 text-primary-600" />
+                Photo Evidence ({uploadedImages.length} / {MAX_IMAGES})
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowUrlInput(!showUrlInput)}
+                className="text-xs font-semibold text-primary-600 hover:text-primary-700 underline"
+              >
+                {showUrlInput ? 'Hide URL input' : '+ Add via Image Link'}
+              </button>
             </div>
 
+            {/* URL input fallback */}
+            {showUrlInput && (
+              <div className="mb-4 flex gap-2">
+                <input
+                  type="url"
+                  placeholder="Paste image web link (https://...)"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  className="flex-1 px-3 py-2 text-xs rounded-xl border border-gray-300 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddImageUrl}
+                  className="px-4 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-700"
+                >
+                  Add Link
+                </button>
+              </div>
+            )}
+
+            {/* Drag & Drop Multi-file Upload Zone */}
+            {uploadedImages.length < MAX_IMAGES && (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-gray-300 hover:border-primary-500 bg-slate-50/60 hover:bg-primary-50/30 rounded-2xl p-6 text-center cursor-pointer transition-all group"
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  disabled={uploadingCount > 0}
+                />
+
+                {uploadingCount > 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-2">
+                    <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+                    <span className="text-sm font-semibold text-primary-700">
+                      Uploading {uploadingCount} photo{uploadingCount > 1 ? 's' : ''} to Cloudinary...
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="w-12 h-12 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <UploadCloud className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <span className="text-sm font-bold text-gray-900 block">
+                        Click or drag to upload multiple photos
+                      </span>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Select multiple photos from different angles (PNG, JPG, WEBP &bull; Max {MAX_IMAGES} photos)
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Uploaded Images Preview Gallery */}
             {uploadedImages.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-4">
-                {uploadedImages.map((url, idx) => (
-                  <div
-                    key={idx}
-                    className="relative w-28 h-28 rounded-2xl overflow-hidden border border-gray-200 shadow-sm group"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt={`Upload ${idx + 1}`} className="w-full h-full object-cover" />
+              <div className="mt-4 space-y-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                  {uploadedImages.map((url, idx) => (
+                    <div
+                      key={idx}
+                      className="relative aspect-square rounded-2xl overflow-hidden border border-gray-200 shadow-sm group bg-slate-100"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={`Upload ${idx + 1}`} className="w-full h-full object-cover" />
+                      
+                      {/* Badge indicating cover image */}
+                      {idx === 0 && (
+                        <span className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-md bg-black/75 text-white text-[10px] font-bold backdrop-blur-xs">
+                          Cover
+                        </span>
+                      )}
+
+                      {/* Remove button */}
+                      <button
+                        type="button"
+                        onClick={() => removeUploadedImage(idx)}
+                        className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/70 hover:bg-red-600 text-white transition-colors"
+                        title="Remove photo"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add more button tile */}
+                  {uploadedImages.length < MAX_IMAGES && (
                     <button
                       type="button"
-                      onClick={() => removeUploadedImage(idx)}
-                      className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/70 hover:bg-red-600 text-white transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="aspect-square rounded-2xl border-2 border-dashed border-gray-300 hover:border-primary-500 bg-slate-50 hover:bg-primary-50 flex flex-col items-center justify-center gap-1 text-gray-500 hover:text-primary-600 transition-colors"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <Plus className="w-6 h-6" />
+                      <span className="text-[11px] font-bold">Add Photo</span>
                     </button>
-                  </div>
-                ))}
+                  )}
+                </div>
               </div>
             )}
           </div>
 
           {/* ========================================================================= */}
-          {/* ENHANCED AUTOMATIC LOCATION & PINPOINTING SECTION */}
+          {/* GEOLOCATION & PINPOINTING SECTION */}
           {/* ========================================================================= */}
           <div className="pt-6 border-t border-gray-200 space-y-5">
             {/* Header & GPS Re-trigger */}
@@ -708,7 +804,7 @@ export default function CreatePostPage() {
             </button>
             <button
               type="submit"
-              disabled={loading || uploadingImage}
+              disabled={loading || uploadingCount > 0}
               className="px-8 py-3 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-bold text-sm shadow-lg shadow-primary-600/30 flex items-center gap-2 active:scale-95 transition-all disabled:opacity-50"
             >
               {loading ? (
@@ -719,7 +815,7 @@ export default function CreatePostPage() {
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  Submit Issue Report
+                  Submit Issue Report ({uploadedImages.length} photo{uploadedImages.length !== 1 ? 's' : ''})
                 </>
               )}
             </button>
