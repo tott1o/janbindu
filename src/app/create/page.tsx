@@ -673,7 +673,7 @@ export default function CreatePostPage() {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="🔍 Search landmark, area, or road (e.g. Bandra Terminus, MG Road...)"
+                  placeholder="Search landmark, area, or road (e.g. Bandra Terminus, MG Road...)"
                   value={searchQuery}
                   onChange={(e) => handlePlaceSearch(e.target.value)}
                   onFocus={() => {

@@ -219,7 +219,7 @@ export default function CivicMapPage() {
             <form onSubmit={handleSearchSubmit} className="relative">
               <input
                 type="text"
-                placeholder="🔍 Search place to zoom (e.g. Bandra, Indiranagar, MG Road)..."
+                placeholder="Search place to zoom (e.g. Bandra, Indiranagar, MG Road)..."
                 value={searchQuery}
                 onChange={(e) => handlePlaceSearch(e.target.value)}
                 onFocus={() => {
