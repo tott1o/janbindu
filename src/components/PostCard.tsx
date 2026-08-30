@@ -12,7 +12,6 @@ import {
   Images,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
 } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { CategoryBadge } from './CategoryBadge';
@@ -48,7 +47,6 @@ export interface PostCardProps {
     isNearby?: boolean;
   };
   onVoteChange?: (postId: string, newScore: number, userVote: string | null) => void;
-  userCoords?: { lat: number; lng: number } | null;
 }
 
 export const PostCard: React.FC<PostCardProps> = ({ post, onVoteChange }) => {
@@ -144,43 +142,32 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onVoteChange }) => {
   const distanceText = formatDistance(post.distanceKm || null);
 
   return (
-    <article className="group bg-white rounded-2xl border border-slate-200/70 hover:border-slate-300 shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden">
-      {/* Top Proximity Accent (Only if nearby) */}
-      {post.isNearby && (
-        <div className="bg-primary-50/80 border-b border-primary-100/60 px-3.5 py-1 flex items-center justify-between text-[11px] font-semibold text-primary-700">
-          <div className="flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-primary-600" />
-            <span>Near you</span>
-          </div>
-          {distanceText && <span className="font-bold">{distanceText}</span>}
-        </div>
-      )}
-
-      {/* Main Clickable Area */}
+    <article className="group bg-white rounded-2xl border border-gray-200/90 hover:border-gray-300 shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden">
+      {/* Main Clickable Card Body */}
       <Link href={`/post/${post.id}`} className="block flex-1 flex flex-col">
         {/* Cover Photo */}
-        <div className="relative aspect-[16/10] w-full bg-slate-100 overflow-hidden">
+        <div className="relative aspect-[16/10] w-full bg-gray-100 overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={images[activeImgIndex] || defaultImage}
             alt={post.title}
-            className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300"
+            className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
           />
 
-          {/* Minimal Floating Badges */}
+          {/* Floating Badges */}
           <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none">
             <div className="pointer-events-auto">
               <CategoryBadge category={post.category} className="shadow-2xs text-[11px] py-0.5 px-2" />
             </div>
 
             {/* Score Pill */}
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-sm text-[11px] font-bold text-slate-800 border border-white/40 shadow-2xs">
-              <Flame className="w-3 h-3 text-amber-500 fill-amber-500" />
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-xs text-[11px] font-bold text-gray-800 shadow-2xs">
+              <Flame className="w-3 h-3 text-accent-500 fill-accent-500" />
               <span>{Math.round(post.janbinduScore || 0)}</span>
             </div>
           </div>
 
-          {/* Multi-Photo Carousel Controls */}
+          {/* Multi-Photo Switcher (Desktop hover / Mobile friendly) */}
           {images.length > 1 && (
             <>
               <button
@@ -196,8 +183,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onVoteChange }) => {
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
 
-              <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-white text-[10px] font-medium flex items-center gap-1">
-                <Images className="w-3 h-3" />
+              <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-white text-[10px] font-medium flex items-center gap-1">
+                <Images className="w-2.5 h-2.5" />
                 <span>
                   {activeImgIndex + 1}/{images.length}
                 </span>
@@ -205,33 +192,39 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onVoteChange }) => {
             </>
           )}
 
-          {/* Bottom Left Urgency Indicator */}
-          <div className="absolute bottom-2.5 left-2.5">
+          {/* Urgency tag & Proximity Badge */}
+          <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
             <span
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${criticality.bg} backdrop-blur-sm shadow-2xs`}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${criticality.bg} backdrop-blur-xs shadow-2xs`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${criticality.dot}`} />
               {criticality.label}
             </span>
+
+            {post.isNearby && distanceText && (
+              <span className="px-2 py-0.5 rounded-full bg-primary-600/90 text-white text-[10px] font-bold backdrop-blur-xs shadow-2xs">
+                {distanceText}
+              </span>
+            )}
           </div>
         </div>
 
         {/* Content Body */}
-        <div className="p-4 flex-1 flex flex-col justify-between space-y-2.5">
+        <div className="p-4 flex-1 flex flex-col justify-between space-y-2">
           <div>
-            <h3 className="text-[15px] font-bold text-slate-900 line-clamp-1 group-hover:text-primary-600 transition-colors leading-snug">
+            <h3 className="text-base font-bold text-gray-900 line-clamp-1 group-hover:text-primary-600 transition-colors">
               {post.title}
             </h3>
 
-            <p className="mt-1 text-xs text-slate-500 line-clamp-2 leading-relaxed">
+            <p className="mt-1 text-xs text-gray-600 line-clamp-2 leading-relaxed">
               {post.description}
             </p>
           </div>
 
-          {/* Location & Time Subheader */}
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <div className="flex items-center gap-1 truncate max-w-[170px] text-slate-600 font-medium">
-              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+          {/* Location & Time Footer */}
+          <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+            <div className="flex items-center gap-1 truncate max-w-[170px]">
+              <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
               <span className="truncate">
                 {post.city ? `${post.city}${post.state ? `, ${post.state}` : ''}` : post.address || 'Location Tagged'}
               </span>
@@ -242,31 +235,31 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onVoteChange }) => {
         </div>
       </Link>
 
-      {/* Minimal Action Footer */}
-      <div className="px-4 py-2.5 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+      {/* Action Footer */}
+      <div className="px-4 py-2 bg-gray-50/70 border-t border-gray-100 flex items-center justify-between">
         {/* Voting Segment */}
-        <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
+        <div className="flex items-center bg-white border border-gray-200 rounded-lg p-0.5 shadow-2xs">
           <button
             onClick={(e) => handleVote(e, 'upvote')}
-            className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 text-xs font-bold ${
+            className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 text-xs font-semibold ${
               post.userVote === 'upvote'
                 ? 'text-emerald-700 bg-emerald-50'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-emerald-600'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-emerald-600'
             }`}
-            title="Upvote"
+            title="Upvote issue"
           >
             <ArrowBigUp className="w-3.5 h-3.5" />
             <span>{post.upvoteCount || 0}</span>
           </button>
 
-          <div className="w-[1px] h-3 bg-slate-200" />
+          <div className="w-[1px] h-3 bg-gray-200" />
 
           <button
             onClick={(e) => handleVote(e, 'downvote')}
             className={`p-1 rounded-md transition-colors ${
               post.userVote === 'downvote'
                 ? 'text-red-700 bg-red-50'
-                : 'text-slate-400 hover:bg-slate-100 hover:text-red-600'
+                : 'text-gray-400 hover:bg-gray-100 hover:text-red-600'
             }`}
             title="Downvote"
           >
@@ -274,22 +267,22 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onVoteChange }) => {
           </button>
         </div>
 
-        {/* Interaction stats & status */}
-        <div className="flex items-center gap-2">
+        {/* Comments & Status */}
+        <div className="flex items-center gap-2.5">
           <Link
             href={`/post/${post.id}`}
-            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-slate-500 hover:text-primary-600 hover:bg-white transition-colors"
+            className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-primary-600 transition-colors"
           >
-            <MessageSquare className="w-3 h-3" />
+            <MessageSquare className="w-3.5 h-3.5" />
             <span>{post.commentCount || 0}</span>
           </Link>
 
           <button
             onClick={handleShare}
-            className="p-1 text-slate-400 hover:text-slate-600 hover:bg-white rounded-md transition-colors"
-            title="Share"
+            className="p-1 text-gray-400 hover:text-gray-700 transition-colors"
+            title="Share issue"
           >
-            <Share2 className="w-3 h-3" />
+            <Share2 className="w-3.5 h-3.5" />
           </button>
 
           <StatusBadge status={post.status} className="text-[10px] py-0 px-2" />
