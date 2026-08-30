@@ -208,35 +208,8 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* Horizontal Scrollable Category Pills (Mobile & Desktop) */}
-      <div className="pt-4 flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
-        <button
-          onClick={() => setSelectedCategory('')}
-          className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-            selectedCategory === ''
-              ? 'bg-gray-900 text-white shadow-xs'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          All Categories
-        </button>
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.value}
-            onClick={() => setSelectedCategory(selectedCategory === cat.value ? '' : cat.value)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-              selectedCategory === cat.value
-                ? 'bg-primary-600 text-white shadow-xs'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
       {/* Grid Layout with Filters */}
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Filters Sidebar */}
         <div className="space-y-6">
           <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-2xs space-y-4">
