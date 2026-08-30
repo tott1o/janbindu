@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { PostCard } from '@/components/PostCard';
 import { CategorySelect } from '@/components/CategorySelect';
-import { MapComponent } from '@/components/MapComponent';
 import { CATEGORIES } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -16,9 +15,8 @@ import {
   Navigation,
   X,
   Plus,
-  LayoutGrid,
   Map as MapIcon,
-  Sparkles,
+  LayoutGrid,
 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -28,7 +26,6 @@ export default function FeedPage() {
 
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'feed' | 'map'>('feed');
   const [sort, setSort] = useState<'trending' | 'nearby' | 'recent'>('trending');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
@@ -74,7 +71,7 @@ export default function FeedPage() {
       const params = new URLSearchParams({
         sort,
         page: currentPage.toString(),
-        limit: viewMode === 'map' ? '100' : '12',
+        limit: '12',
       });
 
       if (selectedCategory) params.append('category', selectedCategory);
@@ -111,7 +108,7 @@ export default function FeedPage() {
   useEffect(() => {
     setPage(1);
     fetchPosts(true);
-  }, [sort, selectedCategory, selectedStatus, userCoords, viewMode]);
+  }, [sort, selectedCategory, selectedStatus, userCoords]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,12 +150,12 @@ export default function FeedPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 relative">
-      {/* Header & View Switcher */}
+      {/* Header & Action Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-200">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
-              {viewMode === 'feed' ? 'Public Issues Feed' : 'Live Civic Map'}
+              Public Issues Feed
             </h1>
             <span className="px-2.5 py-0.5 rounded-full bg-primary-100 text-primary-800 text-xs font-bold">
               {totalCount} Issues
@@ -169,75 +166,55 @@ export default function FeedPage() {
           </p>
         </div>
 
-        {/* Action Buttons, View Mode & Sort Tabs */}
+        {/* Action Buttons, Fullscreen Map Link & Sort Tabs */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Main View Mode Switcher (Feed <-> Map) */}
-          <div className="flex items-center p-1 rounded-xl bg-slate-200/90 shadow-2xs">
+          {/* Direct Full-Screen Map Link */}
+          <Link
+            href="/map"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all border border-slate-200 shadow-2xs hover:scale-102 active:scale-98"
+          >
+            <MapIcon className="w-3.5 h-3.5 text-primary-600" />
+            <span>Full-Screen Map</span>
+          </Link>
+
+          {/* Sort Filter Pills */}
+          <div className="flex items-center p-1 rounded-xl bg-gray-100 max-w-fit">
             <button
-              onClick={() => setViewMode('feed')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                viewMode === 'feed'
+              onClick={() => setSort('trending')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                sort === 'trending'
                   ? 'bg-white text-gray-900 shadow-xs'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span>Feed</span>
+              <Flame className="w-3.5 h-3.5 text-accent-500 fill-accent-500" />
+              <span>Trending</span>
             </button>
 
             <button
-              onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                viewMode === 'map'
-                  ? 'bg-white text-primary-700 shadow-xs ring-1 ring-primary-200'
+              onClick={() => setSort('nearby')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                sort === 'nearby'
+                  ? 'bg-white text-primary-700 shadow-xs'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <MapIcon className="w-3.5 h-3.5 text-primary-600" />
-              <span>Live Map</span>
+              <MapPin className="w-3.5 h-3.5 text-primary-600" />
+              <span>Near Me</span>
+            </button>
+
+            <button
+              onClick={() => setSort('recent')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                sort === 'recent'
+                  ? 'bg-white text-gray-900 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-blue-500" />
+              <span>Recent</span>
             </button>
           </div>
-
-          {/* Sort Filter Pills (When in Feed view) */}
-          {viewMode === 'feed' && (
-            <div className="flex items-center p-1 rounded-xl bg-gray-100 max-w-fit">
-              <button
-                onClick={() => setSort('trending')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  sort === 'trending'
-                    ? 'bg-white text-gray-900 shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <Flame className="w-3.5 h-3.5 text-accent-500 fill-accent-500" />
-                <span>Trending</span>
-              </button>
-
-              <button
-                onClick={() => setSort('nearby')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  sort === 'nearby'
-                    ? 'bg-white text-primary-700 shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <MapPin className="w-3.5 h-3.5 text-primary-600" />
-                <span>Near Me</span>
-              </button>
-
-              <button
-                onClick={() => setSort('recent')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  sort === 'recent'
-                    ? 'bg-white text-gray-900 shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5 text-blue-500" />
-                <span>Recent</span>
-              </button>
-            </div>
-          )}
 
           <Link
             href="/create"
@@ -249,7 +226,7 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* Main Grid Layout with Filters & Content */}
+      {/* Grid Layout with Filters & Content */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Filters Sidebar */}
         <div className="space-y-6">
@@ -331,38 +308,12 @@ export default function FeedPage() {
           </div>
         </div>
 
-        {/* View Switcher Container: Card Feed OR Live Map */}
+        {/* Issues List Grid */}
         <div className="lg:col-span-3 space-y-6">
           {loading && posts.length === 0 ? (
             <div className="py-24 text-center">
               <Loader2 className="w-8 h-8 text-primary-600 animate-spin mx-auto mb-3" />
               <p className="text-xs text-gray-500 font-medium">Loading civic issues...</p>
-            </div>
-          ) : viewMode === 'map' ? (
-            /* Live Interactive Map View */
-            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-              <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <MapIcon className="w-4 h-4 text-primary-400" />
-                  <span className="text-xs sm:text-sm font-bold">Interactive Geographic Map View</span>
-                </div>
-                <span className="text-[11px] text-slate-300">
-                  Showing {posts.filter((p) => p.locationLat && p.locationLng).length} mapped issues
-                </span>
-              </div>
-              <div className="h-[550px] w-full relative">
-                <MapComponent
-                  issues={posts}
-                  center={
-                    userCoords
-                      ? [userCoords.lat, userCoords.lng]
-                      : posts[0]?.locationLat
-                      ? [posts[0].locationLat, posts[0].locationLng]
-                      : [20.5937, 78.9629]
-                  }
-                  zoom={userCoords ? 13 : 5}
-                />
-              </div>
             </div>
           ) : posts.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center space-y-3">
@@ -400,24 +351,15 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* Floating View Switcher Pill (Bottom Center - Mobile & Desktop) */}
+      {/* Floating Full-Screen Map Pill (Bottom Center) */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
-        <button
-          onClick={() => setViewMode(viewMode === 'feed' ? 'map' : 'feed')}
+        <Link
+          href="/map"
           className="flex items-center gap-2 px-5 py-3 rounded-full bg-slate-900/90 hover:bg-slate-900 text-white font-bold text-xs shadow-2xl backdrop-blur-md border border-white/20 transition-all hover:scale-105 active:scale-95"
         >
-          {viewMode === 'feed' ? (
-            <>
-              <MapIcon className="w-4 h-4 text-primary-400" />
-              <span>Switch to Live Map ({totalCount})</span>
-            </>
-          ) : (
-            <>
-              <LayoutGrid className="w-4 h-4 text-primary-400" />
-              <span>Switch to Feed Cards</span>
-            </>
-          )}
-        </button>
+          <MapIcon className="w-4 h-4 text-primary-400" />
+          <span>View on Full-Screen Map ({totalCount})</span>
+        </Link>
       </div>
     </div>
   );
