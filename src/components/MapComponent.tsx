@@ -127,17 +127,23 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     });
   };
 
-  // Helper component to auto-pan / flyTo map when coordinates change
-  const MapPanController = ({ coords }: { coords?: { lat: number; lng: number } }) => {
+  // Helper component to smoothly flyTo and zoom when center coordinates change
+  const MapPanController = ({
+    targetCenter,
+    targetZoom,
+  }: {
+    targetCenter: [number, number];
+    targetZoom: number;
+  }) => {
     const map = useMap();
     useEffect(() => {
-      if (coords && coords.lat && coords.lng) {
-        map.flyTo([coords.lat, coords.lng], 16, {
+      if (targetCenter && targetCenter[0] && targetCenter[1]) {
+        map.flyTo(targetCenter, targetZoom, {
           animate: true,
-          duration: 1.2,
+          duration: 1.4,
         });
       }
-    }, [coords?.lat, coords?.lng, map]);
+    }, [targetCenter[0], targetCenter[1], targetZoom, map]);
     return null;
   };
 
@@ -181,11 +187,16 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     return null;
   };
 
+  const activeCenter: [number, number] = selectedPos
+    ? [selectedPos.lat, selectedPos.lng]
+    : center;
+  const activeZoom: number = selectedPos ? 16 : zoom;
+
   return (
-    <div className="relative w-full h-full min-h-[350px] rounded-2xl overflow-hidden shadow-inner border border-gray-200">
+    <div className="relative w-full h-full min-h-[350px] overflow-hidden">
       <MapContainer
-        center={selectedPos ? [selectedPos.lat, selectedPos.lng] : center}
-        zoom={selectedPos ? 15 : zoom}
+        center={activeCenter}
+        zoom={activeZoom}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
@@ -194,12 +205,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {isPicker && (
-          <>
-            <MapPanController coords={selectedPos} />
-            <LocationMarker />
-          </>
-        )}
+        {/* Dynamic smooth flyTo controller for all map modes */}
+        <MapPanController targetCenter={activeCenter} targetZoom={activeZoom} />
+
+        {isPicker && <LocationMarker />}
 
         {!isPicker &&
           issues.map((issue) => {
