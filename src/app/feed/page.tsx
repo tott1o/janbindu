@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { PostCard } from '@/components/PostCard';
+import { CategorySelect } from '@/components/CategorySelect';
 import { CATEGORIES } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -288,18 +289,12 @@ export default function FeedPage() {
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
                 Category
               </label>
-              <select
+              <CategorySelect
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-gray-300 focus:outline-hidden focus:ring-2 focus:ring-primary-500 bg-white"
-              >
-                <option value="">All Categories</option>
-                {CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(cat) => setSelectedCategory(cat)}
+                allowAll={true}
+                placeholder="All Categories"
+              />
             </div>
 
             {/* Status Select */}

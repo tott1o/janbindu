@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { CATEGORIES } from '@/lib/utils';
 import { MapComponent } from '@/components/MapComponent';
+import { CategorySelect } from '@/components/CategorySelect';
 import {
   AlertTriangle,
   MapPin,
@@ -465,17 +466,11 @@ export default function CreatePostPage() {
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
                 Category
               </label>
-              <select
+              <CategorySelect
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-hidden focus:ring-2 focus:ring-primary-500 text-sm font-medium bg-white"
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(cat) => setCategory(cat)}
+                placeholder="Choose Issue Category"
+              />
             </div>
 
             <div>
