@@ -26,6 +26,7 @@ interface MapComponentProps {
   isPicker?: boolean;
   onLocationSelect?: (lat: number, lng: number) => void;
   selectedPos?: { lat: number; lng: number };
+  selectedAddress?: string;
 }
 
 export const MapComponent: React.FC<MapComponentProps> = ({
@@ -35,6 +36,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   isPicker = false,
   onLocationSelect,
   selectedPos,
+  selectedAddress,
 }) => {
   const [mounted, setMounted] = useState(false);
   const [MapModules, setMapModules] = useState<any>(null);
@@ -52,18 +54,19 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
   if (!mounted || !MapModules) {
     return (
-      <div className="w-full h-full min-h-[400px] bg-gray-100 rounded-2xl flex items-center justify-center text-gray-500 font-medium">
+      <div className="w-full h-full min-h-[300px] bg-slate-100 rounded-2xl flex items-center justify-center text-gray-500 font-medium">
         <div className="flex items-center gap-2">
           <MapPin className="w-5 h-5 animate-bounce text-primary-600" />
-          <span>Loading Civic Map...</span>
+          <span>Loading Interactive Map...</span>
         </div>
       </div>
     );
   }
 
-  const { MapContainer, TileLayer, Marker, Popup, useMapEvents } = MapModules;
+  const { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } = MapModules;
   const L = MapModules.L;
 
+  // Custom icon for existing civic issues
   const createCriticalityIcon = (criticality: string) => {
     let color = '#22c55e'; // green
     if (criticality === 'critical') color = '#dc2626'; // red
@@ -86,6 +89,58 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     });
   };
 
+  // Custom picker marker icon (distinct pin with pulse ring)
+  const createPickerIcon = () => {
+    return L.divIcon({
+      className: 'custom-picker-pin',
+      html: `
+        <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;">
+          <div style="
+            position: absolute;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(79, 70, 229, 0.25);
+            animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+          "></div>
+          <div style="
+            position: relative;
+            background: #4f46e5;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            border: 3px solid white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          ">
+            <div style="width: 8px; height: 8px; background: white; border-radius: 50%;"></div>
+          </div>
+        </div>
+      `,
+      iconSize: [40, 40],
+      iconAnchor: [20, 36],
+      popupAnchor: [0, -36],
+    });
+  };
+
+  // Helper component to auto-pan / flyTo map when coordinates change
+  const MapPanController = ({ coords }: { coords?: { lat: number; lng: number } }) => {
+    const map = useMap();
+    useEffect(() => {
+      if (coords && coords.lat && coords.lng) {
+        map.flyTo([coords.lat, coords.lng], 16, {
+          animate: true,
+          duration: 1.2,
+        });
+      }
+    }, [coords?.lat, coords?.lng, map]);
+    return null;
+  };
+
   const LocationMarker = () => {
     useMapEvents({
       click(e: any) {
@@ -95,11 +150,12 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       },
     });
 
-    if (selectedPos) {
+    if (selectedPos && selectedPos.lat && selectedPos.lng) {
       return (
         <Marker
           position={[selectedPos.lat, selectedPos.lng]}
           draggable={true}
+          icon={createPickerIcon()}
           eventHandlers={{
             dragend: (e: any) => {
               const marker = e.target;
@@ -107,17 +163,29 @@ export const MapComponent: React.FC<MapComponentProps> = ({
               if (onLocationSelect) onLocationSelect(pos.lat, pos.lng);
             },
           }}
-        />
+        >
+          {selectedAddress && (
+            <Popup autoPan={false}>
+              <div className="text-xs p-1">
+                <p className="font-bold text-primary-700">Selected Location</p>
+                <p className="text-gray-600 text-[11px] mt-0.5 max-w-[200px] leading-tight">
+                  {selectedAddress}
+                </p>
+                <span className="text-[10px] text-gray-400 block mt-1">Drag pin to adjust</span>
+              </div>
+            </Popup>
+          )}
+        </Marker>
       );
     }
     return null;
   };
 
   return (
-    <div className="relative w-full h-full min-h-[500px] rounded-2xl overflow-hidden shadow-inner border border-gray-200">
+    <div className="relative w-full h-full min-h-[350px] rounded-2xl overflow-hidden shadow-inner border border-gray-200">
       <MapContainer
-        center={center}
-        zoom={zoom}
+        center={selectedPos ? [selectedPos.lat, selectedPos.lng] : center}
+        zoom={selectedPos ? 15 : zoom}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
@@ -126,7 +194,12 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {isPicker && <LocationMarker />}
+        {isPicker && (
+          <>
+            <MapPanController coords={selectedPos} />
+            <LocationMarker />
+          </>
+        )}
 
         {!isPicker &&
           issues.map((issue) => {

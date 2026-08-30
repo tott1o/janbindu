@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { CATEGORIES } from '@/lib/utils';
@@ -13,9 +13,38 @@ import {
   Loader2,
   CheckCircle2,
   Navigation,
-  Image as ImageIcon,
+  Search,
+  Crosshair,
+  Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+interface SearchResult {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+  address?: {
+    road?: string;
+    suburb?: string;
+    neighbourhood?: string;
+    residential?: string;
+    building?: string;
+    amenity?: string;
+    commercial?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    municipality?: string;
+    subdistrict?: string;
+    county?: string;
+    state?: string;
+    postcode?: string;
+    country?: string;
+    [key: string]: string | undefined;
+  };
+}
 
 export default function CreatePostPage() {
   const { isAuthenticated } = useAuth();
@@ -31,14 +60,220 @@ export default function CreatePostPage() {
   const [imageUrl, setImageUrl] = useState('');
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Position state (default fallback if GPS permission is pending)
   const [position, setPosition] = useState<{ lat: number; lng: number }>({
     lat: 19.076,
-    lng: 72.8777, // Default to Mumbai
+    lng: 72.8777,
   });
+
+  // Geolocation & geocoding status
+  const [locating, setLocating] = useState(false);
+  const [locationSource, setLocationSource] = useState<'gps' | 'pin' | 'search' | 'default'>('default');
+  const [geocodingLoading, setGeocodingLoading] = useState(false);
+
+  // Place Search & Autocomplete
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchingPlace, setSearchingPlace] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+
   const [loading, setLoading] = useState(false);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * Reverse Geocoding: Given (lat, lng), fetch human-readable Address, City, and State
+   */
+  const reverseGeocode = useCallback(async (lat: number, lng: number) => {
+    try {
+      setGeocodingLoading(true);
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        {
+          headers: {
+            'Accept-Language': 'en',
+          },
+        }
+      );
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+      if (data && data.address) {
+        const addrObj = data.address;
+
+        // Construct clean street/landmark address
+        const road = addrObj.road || addrObj.suburb || addrObj.neighbourhood || addrObj.residential || '';
+        const landmark = addrObj.building || addrObj.amenity || addrObj.commercial || '';
+        const formattedAddress = [landmark, road].filter(Boolean).join(', ') || data.display_name.split(',').slice(0, 2).join(', ');
+
+        // Extract city / town
+        const detectedCity =
+          addrObj.city ||
+          addrObj.town ||
+          addrObj.village ||
+          addrObj.municipality ||
+          addrObj.subdistrict ||
+          addrObj.county ||
+          '';
+
+        // Extract state
+        const detectedState = addrObj.state || '';
+
+        if (formattedAddress) setAddress(formattedAddress);
+        if (detectedCity) setCity(detectedCity);
+        if (detectedState) setState(detectedState);
+      }
+    } catch (err) {
+      console.error('Reverse geocoding error:', err);
+    } finally {
+      setGeocodingLoading(false);
+    }
+  }, []);
+
+  /**
+   * Get Current GPS Location with High Accuracy
+   */
+  const handleGetCurrentLocation = useCallback((isAutomatic = false) => {
+    if (!navigator.geolocation) {
+      if (!isAutomatic) toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const coords = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        };
+        setPosition(coords);
+        setLocationSource('gps');
+        setLocating(false);
+
+        // Auto-populate address, city, state via reverse geocoding
+        await reverseGeocode(coords.lat, coords.lng);
+        toast.success(isAutomatic ? 'Location auto-detected' : 'GPS location locked');
+      },
+      (err) => {
+        setLocating(false);
+        if (!isAutomatic) {
+          if (err.code === 1) {
+            toast.error('Location access denied. Please click on the map to pinpoint.');
+          } else {
+            toast.error('Unable to fetch GPS position. Pinpoint on the map.');
+          }
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      }
+    );
+  }, [reverseGeocode]);
+
+  // Automatically trigger location detection on page load
+  useEffect(() => {
+    handleGetCurrentLocation(true);
+  }, [handleGetCurrentLocation]);
+
+  // Click outside to close search dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
+        setShowSearchResults(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  /**
+   * Forward Geocoding: Search places / landmarks
+   */
+  const handlePlaceSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim() || query.trim().length < 3) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    try {
+      setSearchingPlace(true);
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          query.trim()
+        )}&addressdetails=1&limit=5&countrycodes=in`,
+        {
+          headers: { 'Accept-Language': 'en' },
+        }
+      );
+
+      if (!res.ok) return;
+
+      const data: SearchResult[] = await res.json();
+      setSearchResults(data);
+      setShowSearchResults(true);
+    } catch (err) {
+      console.error('Place search error:', err);
+    } finally {
+      setSearchingPlace(false);
+    }
+  };
+
+  /**
+   * User selects place from autocomplete dropdown
+   */
+  const handleSelectSearchResult = (result: SearchResult) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    setPosition({ lat, lng });
+    setLocationSource('search');
+    setShowSearchResults(false);
+    setSearchQuery(result.display_name);
+
+    // Auto populate address fields
+    if (result.address) {
+      const addrObj = result.address;
+      const road = addrObj.road || addrObj.suburb || addrObj.neighbourhood || '';
+      const landmark = addrObj.building || addrObj.amenity || '';
+      const formattedAddress = [landmark, road].filter(Boolean).join(', ') || result.display_name.split(',').slice(0, 2).join(', ');
+
+      const detectedCity =
+        addrObj.city ||
+        addrObj.town ||
+        addrObj.village ||
+        addrObj.municipality ||
+        addrObj.subdistrict ||
+        addrObj.county ||
+        '';
+
+      const detectedState = addrObj.state || '';
+
+      setAddress(formattedAddress || result.display_name);
+      if (detectedCity) setCity(detectedCity);
+      if (detectedState) setState(detectedState);
+    }
+
+    toast.success('Map centered on selected landmark');
+  };
+
+  /**
+   * User clicks or drags marker on the map
+   */
+  const handleMapLocationSelect = async (lat: number, lng: number) => {
+    setPosition({ lat, lng });
+    setLocationSource('pin');
+    await reverseGeocode(lat, lng);
+  };
+
+  // Photo upload handling (Cloudinary)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -68,7 +303,7 @@ export default function CreatePostPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || 'Failed to upload image to Cloudinary');
+        toast.error(data.error || 'Failed to upload image');
         return;
       }
 
@@ -84,23 +319,6 @@ export default function CreatePostPage() {
 
   const removeUploadedImage = (index: number) => {
     setUploadedImages((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleGetCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setPosition({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          });
-          toast.success('Location updated');
-        },
-        () => {
-          toast.error('Unable to retrieve current location');
-        }
-      );
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -134,9 +352,9 @@ export default function CreatePostPage() {
           description,
           category,
           criticality,
-          address,
+          address: address || 'Pinpoint Location',
           city: city || 'Local Area',
-          state,
+          state: state || '',
           locationLat: position.lat,
           locationLng: position.lng,
           images: finalImages,
@@ -161,8 +379,8 @@ export default function CreatePostPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="bg-white rounded-3xl border border-gray-200 shadow-xl overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-primary-900 to-indigo-900 px-8 py-8 text-white">
+        {/* Header Banner */}
+        <div className="bg-gradient-to-r from-primary-900 via-primary-800 to-indigo-900 px-8 py-8 text-white">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-accent-500/20 border border-accent-400/30 flex items-center justify-center text-accent-400">
               <AlertTriangle className="w-6 h-6" />
@@ -170,15 +388,15 @@ export default function CreatePostPage() {
             <div>
               <h1 className="text-2xl font-black tracking-tight">Report a Public Issue</h1>
               <p className="text-xs text-primary-200 mt-0.5">
-                Uploaded images will be stored automatically on Cloudinary.
+                Location and address are automatically detected & pinned.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Form Body */}
+        {/* Form */}
         <form onSubmit={handleSubmit} className="p-8 space-y-8">
-          {/* Title */}
+          {/* Issue Title */}
           <div>
             <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
               Issue Title <span className="text-red-500">*</span>
@@ -186,7 +404,7 @@ export default function CreatePostPage() {
             <input
               type="text"
               required
-              placeholder="e.g., Hazardous Open Manhole Near Public School"
+              placeholder="e.g., Severe Potholes & Waterlogging on Main Market Road"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-hidden focus:ring-2 focus:ring-primary-500 text-sm font-medium"
@@ -201,14 +419,14 @@ export default function CreatePostPage() {
             <textarea
               required
               rows={4}
-              placeholder="Describe the problem, duration, and the risk it poses..."
+              placeholder="Describe the severity, how long it has existed, and the danger it poses to pedestrians or traffic..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-hidden focus:ring-2 focus:ring-primary-500 text-sm"
             />
           </div>
 
-          {/* Category & Criticality */}
+          {/* Category & Criticality Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
@@ -229,7 +447,7 @@ export default function CreatePostPage() {
 
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                Criticality Level (Urgency)
+                Criticality Level (Urgency Weight)
               </label>
               <select
                 value={criticality}
@@ -238,19 +456,18 @@ export default function CreatePostPage() {
               >
                 <option value="low">Low (Minor nuisance, cosmetic)</option>
                 <option value="medium">Medium (Needs municipal attention)</option>
-                <option value="high">High (Active disruption / risk)</option>
+                <option value="high">High (Active disruption / hazard)</option>
                 <option value="critical">Critical (Immediate danger to human life)</option>
               </select>
             </div>
           </div>
 
-          {/* Automatic Cloudinary Image Upload Section */}
+          {/* Cloudinary Image Upload Section */}
           <div>
             <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
               Photo Evidence (Automatic Cloudinary Upload)
             </label>
 
-            {/* Drag and drop upload zone */}
             <div
               onClick={() => fileInputRef.current?.click()}
               className="border-2 border-dashed border-gray-300 hover:border-primary-500 bg-slate-50/60 hover:bg-primary-50/30 rounded-2xl p-6 text-center cursor-pointer transition-colors"
@@ -278,7 +495,7 @@ export default function CreatePostPage() {
                   </div>
                   <div>
                     <span className="text-sm font-bold text-gray-900">
-                      Click to upload photo from your device
+                      Click or drag to upload photo from your device
                     </span>
                     <p className="text-xs text-gray-500 mt-0.5">PNG, JPG, WEBP up to 10MB</p>
                   </div>
@@ -286,7 +503,6 @@ export default function CreatePostPage() {
               )}
             </div>
 
-            {/* Uploaded Images Preview Gallery */}
             {uploadedImages.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-4">
                 {uploadedImages.map((url, idx) => (
@@ -309,65 +525,176 @@ export default function CreatePostPage() {
             )}
           </div>
 
-          {/* Geolocation Section */}
-          <div className="pt-4 border-t border-gray-100 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* ========================================================================= */}
+          {/* ENHANCED AUTOMATIC LOCATION & PINPOINTING SECTION */}
+          {/* ========================================================================= */}
+          <div className="pt-6 border-t border-gray-200 space-y-5">
+            {/* Header & GPS Re-trigger */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="font-bold text-gray-900 text-base flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-primary-600" />
-                  Exact Pin Location
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Click or drag the marker to pinpoint the exact location.
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-1.5">
+                    <MapPin className="w-5 h-5 text-primary-600" />
+                    Issue Geolocation & Address
+                  </h3>
+                  {locating && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 animate-pulse">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Locating GPS...
+                    </span>
+                  )}
+                  {!locating && locationSource === 'gps' && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      GPS Locked
+                    </span>
+                  )}
+                  {!locating && locationSource === 'pin' && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary-100 text-primary-800">
+                      <Crosshair className="w-3 h-3" />
+                      Pinpoint Mode
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Coordinates and address auto-fill automatically. Click or drag the pin anywhere on the map.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={handleGetCurrentLocation}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800 transition-colors self-start"
+                onClick={() => handleGetCurrentLocation(false)}
+                disabled={locating}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary-50 hover:bg-primary-100 text-primary-700 text-xs font-bold transition-all border border-primary-200 shrink-0 self-start disabled:opacity-50"
               >
-                <Navigation className="w-4 h-4 text-primary-600" />
-                Use GPS Location
+                {locating ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-primary-600" />
+                ) : (
+                  <Navigation className="w-4 h-4 text-primary-600" />
+                )}
+                <span>{locating ? 'Detecting...' : 'Recalibrate GPS'}</span>
               </button>
             </div>
 
-            {/* Address inputs */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <input
-                type="text"
-                placeholder="Street Landmark"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
-              />
-              <input
-                type="text"
-                placeholder="City (e.g. Mumbai)"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
-              />
-              <input
-                type="text"
-                placeholder="State (e.g. Maharashtra)"
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
-              />
+            {/* Landmark / Place Search Autocomplete */}
+            <div ref={searchContainerRef} className="relative">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="🔍 Search landmark, area, or road (e.g. Bandra Terminus, MG Road...)"
+                  value={searchQuery}
+                  onChange={(e) => handlePlaceSearch(e.target.value)}
+                  onFocus={() => {
+                    if (searchResults.length > 0) setShowSearchResults(true);
+                  }}
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-300 focus:outline-hidden focus:ring-2 focus:ring-primary-500 text-sm bg-slate-50/70 focus:bg-white"
+                />
+                <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+                {searchingPlace && (
+                  <Loader2 className="w-4 h-4 text-primary-600 animate-spin absolute right-3.5 top-3" />
+                )}
+              </div>
+
+              {/* Autocomplete Dropdown */}
+              {showSearchResults && searchResults.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl shadow-xl border border-gray-200 py-1.5 z-50 max-h-60 overflow-y-auto">
+                  {searchResults.map((result) => (
+                    <button
+                      key={result.place_id}
+                      type="button"
+                      onClick={() => handleSelectSearchResult(result)}
+                      className="w-full text-left px-4 py-2.5 hover:bg-primary-50 transition-colors flex items-start gap-2.5 border-b border-gray-50 last:border-0"
+                    >
+                      <MapPin className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
+                      <span className="text-xs text-gray-800 line-clamp-2 leading-relaxed">
+                        {result.display_name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Interactive Map */}
-            <div className="h-64 w-full rounded-2xl overflow-hidden border border-gray-200">
+            {/* Auto-filled Address Fields */}
+            <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-gray-200">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-gray-700 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-accent-600" />
+                  Auto-Detected Address Details
+                </span>
+                {geocodingLoading && (
+                  <span className="text-[11px] text-primary-600 flex items-center gap-1 font-medium">
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    Fetching address...
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-1">
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                    Street / Landmark
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Station Road, Gate 3"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-medium bg-white focus:outline-hidden focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                    City / Municipality
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Mumbai"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-medium bg-white focus:outline-hidden focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Maharashtra"
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-medium bg-white focus:outline-hidden focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
+
+              {/* Display Exact Coordinates */}
+              <div className="pt-2 flex items-center justify-between text-[11px] text-gray-500 font-mono border-t border-gray-200/60">
+                <span>Latitude: <strong>{position.lat.toFixed(5)}</strong></span>
+                <span>Longitude: <strong>{position.lng.toFixed(5)}</strong></span>
+              </div>
+            </div>
+
+            {/* Interactive Leaflet Map with Draggable Pin */}
+            <div className="h-72 w-full rounded-2xl overflow-hidden border border-gray-300 shadow-sm relative">
               <MapComponent
                 issues={[]}
                 center={[position.lat, position.lng]}
-                zoom={14}
+                zoom={16}
                 isPicker={true}
                 selectedPos={position}
-                onLocationSelect={(lat, lng) => setPosition({ lat, lng })}
+                selectedAddress={address ? `${address}, ${city}` : undefined}
+                onLocationSelect={handleMapLocationSelect}
               />
             </div>
+            <p className="text-[11px] text-gray-500 text-center">
+              💡 Tip: Click anywhere on the map or drag the blue pin to refine the exact spot. Address updates in real-time.
+            </p>
           </div>
 
           {/* Submit Action */}
@@ -387,7 +714,7 @@ export default function CreatePostPage() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Calculating Score...
+                  Calculating Priority Score...
                 </>
               ) : (
                 <>
