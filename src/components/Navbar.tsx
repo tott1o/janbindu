@@ -49,7 +49,7 @@ export const Navbar = () => {
               />
               <div className="flex flex-col">
                 <span className="font-extrabold text-xl tracking-tight text-gray-900 leading-none">
-                  Jan<span className="text-primary-600">Bindu</span>
+                  Jan<span className="text-orange-500 font-black">Bindu</span>
                 </span>
                 <span className="text-[10px] text-gray-500 font-medium tracking-wider uppercase">
                   Action Priorities
